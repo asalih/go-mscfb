@@ -9,15 +9,15 @@ import (
 
 type Header struct {
 	Version            Version
-	NumDirSectors      int
-	NumFatSectors      int
-	FirstDirSector     int
-	FirstMinifatSector int
-	NumMinifatSector   int
-	FirstDifatSector   int
-	NumDifatSectors    int
+	NumDirSectors      uint32
+	NumFatSectors      uint32
+	FirstDirSector     uint32
+	FirstMinifatSector uint32
+	NumMinifatSector   uint32
+	FirstDifatSector   uint32
+	NumDifatSectors    uint32
 
-	InitialDifatEntries []int
+	InitialDifatEntries []uint32
 }
 
 const (
@@ -61,7 +61,7 @@ func (h *Header) readFrom(reader io.ReadSeeker) error {
 	}
 
 	if byteOrderMark != BYTE_ORDER_MARK {
-		return fmt.Errorf("Invalid CFB byte order mark (expected 0x{:04X}, found 0x{:04X})", BYTE_ORDER_MARK, byteOrderMark)
+		return fmt.Errorf("invalid CFB byte order mark (expected 0x{:04X}, found 0x{:04X})", BYTE_ORDER_MARK, byteOrderMark)
 	}
 
 	version, err := VersionNumber(versionNumber)
@@ -157,4 +157,38 @@ func (h *Header) readFrom(reader io.ReadSeeker) error {
 		firstDifatSector = END_OF_CHAIN
 	}
 
+	difatEntries := make([]uint32, NUM_DIFAT_ENTRIES_IN_HEADER)
+
+	for i := range difatEntries {
+
+		var next uint32
+		err = binary.Read(reader, binary.LittleEndian, &next)
+		if err != nil {
+			return err
+		}
+
+		if next == FREE_SECTOR {
+			break
+		} else if next > MAX_REGULAR_SECTOR {
+			return fmt.Errorf("invalid DIFAT entry (expected value <= %v, found %v)", MAX_REGULAR_SECTOR, next)
+
+		}
+		difatEntries[i] = next
+	}
+
+	h.Version = version
+	h.NumDirSectors = numDirSectors
+	h.NumFatSectors = numFatSectors
+	h.FirstDirSector = firstDirSector
+	h.FirstMinifatSector = firstMinifatSector
+	h.NumMinifatSector = numMinifatSectors
+	h.FirstDifatSector = firstDifatSector
+	h.NumDifatSectors = numDifatSectors
+	h.InitialDifatEntries = difatEntries
+
+	return nil
+}
+
+func (h *Header) writeTo(writer io.Writer) error {
+	return fmt.Errorf("not implemented")
 }
