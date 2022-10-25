@@ -29,7 +29,7 @@ func CompareNames(nameLeft, nameRight string) Ordering {
 	nr := len(utf16.Encode([]rune(nameRight)))
 
 	if nl == nr {
-		if strings.ToUpper(nameLeft) == strings.ToUpper(nameRight) {
+		if strings.EqualFold(nameLeft, nameRight) {
 			return OrderEqual
 		}
 	}

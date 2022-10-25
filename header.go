@@ -61,7 +61,7 @@ func (h *Header) readFrom(reader io.ReadSeeker) error {
 	}
 
 	if byteOrderMark != BYTE_ORDER_MARK {
-		return fmt.Errorf("invalid CFB byte order mark (expected 0x{:04X}, found 0x{:04X})", BYTE_ORDER_MARK, byteOrderMark)
+		return fmt.Errorf("invalid CFB byte order mark (expected %x, found %x)", BYTE_ORDER_MARK, byteOrderMark)
 	}
 
 	version, err := VersionNumber(versionNumber)
@@ -187,8 +187,4 @@ func (h *Header) readFrom(reader io.ReadSeeker) error {
 	h.InitialDifatEntries = difatEntries
 
 	return nil
-}
-
-func (h *Header) writeTo(writer io.Writer) error {
-	return fmt.Errorf("not implemented")
 }

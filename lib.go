@@ -41,7 +41,10 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 	}
 
 	header := &Header{}
-	header.readFrom(reader)
+	err = header.readFrom(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	sectorLen := header.Version.SectorLen()
 	if bufLen > ((int64(MAX_REGULAR_SECTOR) + 1) * int64(sectorLen)) {
