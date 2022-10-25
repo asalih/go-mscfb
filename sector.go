@@ -5,6 +5,19 @@ import (
 	"io"
 )
 
+type SectorInit int
+
+const (
+	SectorInitZero SectorInit = iota
+	SectorInitFat
+	SectorInitDifat
+	SectorInitDir
+)
+
+func (s SectorInit) Initialize(sector *Sector) {
+	panic("not implemented")
+}
+
 type Sector struct {
 	Version    Version
 	NumSectors uint32

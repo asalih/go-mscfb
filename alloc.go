@@ -10,11 +10,12 @@ type Allocator struct {
 	Validation     Validation
 }
 
-func NewAllocator(sector *Sector, difatSectorIds []uint32, difat []uint32, validation Validation) (*Allocator, error) {
+func NewAllocator(sector *Sector, difatSectorIds []uint32, difat []uint32, fat []uint32, validation Validation) (*Allocator, error) {
 	alloc := Allocator{
 		Sector:         sector,
 		DifatSectorIds: difatSectorIds,
 		Difat:          difat,
+		Fat:            fat,
 		Validation:     validation,
 	}
 
@@ -26,38 +27,51 @@ func NewAllocator(sector *Sector, difatSectorIds []uint32, difat []uint32, valid
 	return &alloc, nil
 }
 
+func (a *Allocator) Next(index uint32) (uint32, error) {
+	if index > uint32(len(a.Fat)) {
+		return 0, fmt.Errorf("invalid index: %v", index)
+	}
+
+	nextId := a.Fat[index]
+	if nextId != END_OF_CHAIN && (nextId > MAX_REGULAR_SECTOR || nextId >= uint32(len(a.Fat))) {
+		return 0, fmt.Errorf("invalid next index: %v", nextId)
+	}
+
+	return nextId, nil
+}
+
 func (a *Allocator) Validate() error {
 	if len(a.Fat) > int(a.Sector.NumSectors) {
 		return fmt.Errorf("fat has %v entries, but file has %v: %w",
 			len(a.Fat), a.Sector.NumSectors, ErrorInvalidCFB)
 	}
 
-	for sectorIdx, difatSector := range a.DifatSectorIds {
-		if sectorIdx >= len(a.Fat) {
+	for _, difatSector := range a.DifatSectorIds {
+		if difatSector >= uint32(len(a.Fat)) {
 			return fmt.Errorf("invalid FAT has %v entries, but DIFAT lists %v as a DIFAT sector: %w",
 				len(a.Fat), difatSector, ErrorInvalidCFB)
 		}
 
-		if a.Fat[sectorIdx] != DIFAT_SECTOR {
+		if a.Fat[difatSector] != DIFAT_SECTOR {
 			if a.Validation.IsStrict() {
-				return fmt.Errorf("invalid DIFAT sector %v is not marked as such in the FAT: %w", sectorIdx, ErrorInvalidCFB)
+				return fmt.Errorf("invalid DIFAT sector %v is not marked as such in the FAT: %w", difatSector, ErrorInvalidCFB)
 			} else {
-				a.Fat[sectorIdx] = DIFAT_SECTOR
+				a.Fat[difatSector] = DIFAT_SECTOR
 			}
 		}
 	}
 
-	for sectorIdx, difatSector := range a.Difat {
-		if sectorIdx >= len(a.Fat) {
+	for _, difatSector := range a.Difat {
+		if difatSector >= uint32(len(a.Fat)) {
 			return fmt.Errorf("invalid FAT has %v entries, but DIFAT lists %v as a FAT sector: %w",
 				len(a.Fat), difatSector, ErrorInvalidCFB)
 		}
 
-		if a.Fat[sectorIdx] != FAT_SECTOR {
+		if a.Fat[difatSector] != FAT_SECTOR {
 			if a.Validation.IsStrict() {
-				return fmt.Errorf("invalid FAT sector %v is not marked as such in the FAT: %w", sectorIdx, ErrorInvalidCFB)
+				return fmt.Errorf("invalid FAT sector %v is not marked as such in the FAT: %w", difatSector, ErrorInvalidCFB)
 			} else {
-				a.Fat[sectorIdx] = FAT_SECTOR
+				a.Fat[difatSector] = FAT_SECTOR
 			}
 		}
 	}
@@ -74,7 +88,7 @@ func (a *Allocator) Validate() error {
 					fatIdx, fat, ErrorInvalidCFB)
 			}
 			pointees[fat] = true
-		} else if fatIdx == int(INVALID_SECTOR) {
+		} else if fat == INVALID_SECTOR {
 			return fmt.Errorf("invalid FAT entry %v points to sector %v, which is an invalid sector: %w", fatIdx, fat, ErrorInvalidCFB)
 		}
 	}
@@ -84,4 +98,8 @@ func (a *Allocator) Validate() error {
 
 func (a *Allocator) SeekToSector(sectorId uint32) (int64, error) {
 	return a.Sector.SeekToSector(sectorId)
+}
+
+func (a *Allocator) SeekWithinSector(sectorId uint32, offset int64) (int64, error) {
+	return a.Sector.SeekWithinSector(sectorId, offset)
 }

@@ -35,6 +35,6 @@ func ObjectFromByte(b byte) ObjectType {
 	case OBJ_TYPE_ROOT:
 		return Root
 	default:
-		return Unallocated
+		return -1
 	}
 }

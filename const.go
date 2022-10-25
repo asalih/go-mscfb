@@ -38,7 +38,7 @@ const (
 	OBJ_TYPE_ROOT         uint8  = 5
 	COLOR_RED             uint8  = 0
 	COLOR_BLACK           uint8  = 1
-	ROOT_STREAM_ID        int    = 0
+	ROOT_STREAM_ID        uint32 = 0
 	MAX_REGULAR_STREAM_ID uint32 = 0xfffffffa
 	NO_STREAM             uint32 = 0xffffffff
 )

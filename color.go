@@ -25,6 +25,6 @@ func ColorFromByte(b byte) Color {
 	case COLOR_BLACK:
 		return Black
 	default:
-		return Black
+		return -1
 	}
 }

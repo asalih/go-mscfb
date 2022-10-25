@@ -15,8 +15,9 @@ var (
 type CompoundFile struct {
 	r io.ReadSeeker
 
-	Validation Validation
-	Header     *Header
+	Header    *Header
+	Directory *Directory
+	MiniAlloc *MiniAlloc
 }
 
 func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
@@ -155,7 +156,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 		fat = fat[:i]
 	}
 
-	allocator, err := NewAllocator(sector, difatSectorIds, difat, validation)
+	allocator, err := NewAllocator(sector, difatSectorIds, difat, fat, validation)
 	if err != nil {
 		return nil, err
 	}
@@ -191,11 +192,58 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 
 			dirEntries = append(dirEntries, entry)
 		}
+
+		currentDirSector, err = allocator.Next(currentDirSector)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	directory, err := NewDirectory(allocator, dirEntries, header.FirstDirSector)
+	if err != nil {
+		return nil, err
+	}
+
+	chain, err := NewChain(allocator, header.FirstMinifatSector, SectorInitFat)
+	if err != nil {
+		return nil, err
+	}
+
+	if validation.IsStrict() && header.NumMinifatSector != chain.NumSectors() {
+		return nil, fmt.Errorf("incorrect number of MiniFAT sectors (header says %v, FAT says %v)",
+			header.NumMinifatSector, chain.NumSectors())
+	}
+
+	numMinifatEntries := uint32(chain.Len() / 4)
+	minifat := make([]uint32, 0)
+
+	p := []byte{0, 0, 0, 0}
+	for i := uint32(0); i < numMinifatEntries; i++ {
+		_, err := chain.Read(p)
+		if err != nil {
+			return nil, err
+		}
+		minifat = append(minifat, binary.LittleEndian.Uint32(p))
+	}
+
+	for i := len(minifat) - 1; i >= 0; i-- {
+		if minifat[i] != FREE_SECTOR {
+			break
+		}
+		minifat = minifat[:i]
+	}
+
+	miniAlloc, err := NewMiniAlloc(directory, minifat, header.FirstMinifatSector)
+	if err != nil {
+		return nil, err
 	}
 
 	compoundFile := CompoundFile{
-		r:      reader,
-		Header: header,
+		r: reader,
+
+		Header:    header,
+		Directory: directory,
+		MiniAlloc: miniAlloc,
 	}
 
 	return &compoundFile, nil
