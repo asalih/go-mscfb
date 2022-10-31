@@ -2,6 +2,7 @@ package mscfb
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"unicode/utf16"
 )
@@ -39,4 +40,29 @@ func CompareNames(nameLeft, nameRight string) Ordering {
 	}
 
 	return OrderLess
+}
+
+func NameChainFromPath(s string) []string {
+	s = path.Clean(s)
+	if s == "" {
+		return []string{}
+	}
+
+	if s[0] == '/' {
+		s = s[1:]
+	}
+
+	if s == "" {
+		return []string{}
+	}
+
+	if strings.HasPrefix(s, "..") {
+		return []string{}
+	}
+
+	return strings.Split(s, "/")
+}
+
+func PathFromNameChain(names []string) string {
+	return "/" + strings.Join(names, "/")
 }

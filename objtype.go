@@ -3,21 +3,21 @@ package mscfb
 type ObjectType int
 
 const (
-	Unallocated ObjectType = iota
-	Storage
-	Stream
-	Root
+	ObjUnallocated ObjectType = iota
+	ObjStorage
+	ObjStream
+	ObjRoot
 )
 
 func (o ObjectType) AsByte() byte {
 	switch o {
-	case Unallocated:
+	case ObjUnallocated:
 		return OBJ_TYPE_UNALLOCATED
-	case Storage:
+	case ObjStorage:
 		return OBJ_TYPE_STORAGE
-	case Stream:
+	case ObjStream:
 		return OBJ_TYPE_STREAM
-	case Root:
+	case ObjRoot:
 		return OBJ_TYPE_ROOT
 	default:
 		return 0
@@ -27,13 +27,13 @@ func (o ObjectType) AsByte() byte {
 func ObjectFromByte(b byte) ObjectType {
 	switch b {
 	case OBJ_TYPE_UNALLOCATED:
-		return Unallocated
+		return ObjUnallocated
 	case OBJ_TYPE_STORAGE:
-		return Storage
+		return ObjStorage
 	case OBJ_TYPE_STREAM:
-		return Stream
+		return ObjStream
 	case OBJ_TYPE_ROOT:
-		return Root
+		return ObjRoot
 	default:
 		return -1
 	}

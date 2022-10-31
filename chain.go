@@ -42,7 +42,7 @@ func (c *Chain) NumSectors() uint32 {
 }
 
 func (c *Chain) Len() uint64 {
-	return uint64(c.Allocator.Sector.SectorLen() * len(c.SectorIds))
+	return uint64(c.Allocator.Sectors.SectorLen() * len(c.SectorIds))
 }
 
 func (c *Chain) Read(p []byte) (int, error) {
@@ -53,23 +53,57 @@ func (c *Chain) Read(p []byte) (int, error) {
 		return 0, io.EOF
 	}
 
-	sectorLen := uint64(c.Allocator.Sector.SectorLen())
+	sectorLen := uint64(c.Allocator.Sectors.SectorLen())
 	currentSectorIndex := uint32(c.OffsetFromStart / sectorLen)
 	currentSectorId := c.SectorIds[currentSectorIndex]
 	offsetWithinSector := c.OffsetFromStart % sectorLen
 
-	_, err := c.Allocator.SeekWithinSector(currentSectorId, int64(offsetWithinSector))
+	sector, err := c.Allocator.SeekWithinSector(currentSectorId, int64(offsetWithinSector))
 	if err != nil {
 		return 0, err
 	}
 
-	bytesReaded, err := c.Allocator.Sector.reader.Read(p[:maxLen])
+	bytesReaded, err := sector.reader.Read(p[:maxLen])
 	if err != nil {
 		return 0, err
 	}
 
 	c.OffsetFromStart += uint64(bytesReaded)
 	return bytesReaded, nil
+}
+
+func (c *Chain) Seek(offset int64, whence int) (int64, error) {
+	length := c.Len()
+	var newOffset int64
+	switch whence {
+	case io.SeekStart:
+		newOffset = offset
+	case io.SeekCurrent:
+		newOffset = int64(c.OffsetFromStart) + offset
+	case io.SeekEnd:
+		newOffset = int64(length) + offset
+	}
+
+	if newOffset < 0 || newOffset > int64(length) {
+		return 0, fmt.Errorf("invalid offset %v", newOffset)
+	}
+
+	c.OffsetFromStart = uint64(newOffset)
+	return int64(c.OffsetFromStart), nil
+}
+
+func (c *Chain) IntoSubSector(subSectorIndex uint32, subSectorLen int64, offsetWithin uint64) (*Sector, error) {
+	subSectorPerSector := int64(c.Allocator.Sectors.SectorLen()) / subSectorLen
+	sectorIndexWithinChain := subSectorIndex / uint32(subSectorPerSector)
+	subsectorIndexWithinSector := subSectorIndex % uint32(subSectorPerSector)
+	sectorId := c.SectorIds[sectorIndexWithinChain]
+
+	sector, err := c.Allocator.SeekWithinSubSector(sectorId, subsectorIndexWithinSector, subSectorLen, int64(offsetWithin))
+	if err != nil {
+		return nil, err
+	}
+
+	return sector, nil
 }
 
 func min(a, b uint64) uint64 {

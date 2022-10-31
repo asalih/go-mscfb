@@ -60,10 +60,10 @@ func (d *Directory) Validate() error {
 		}
 
 		if dirEntryId == ROOT_STREAM_ID {
-			if dirEntry.ObjType != Root {
+			if dirEntry.ObjType != ObjRoot {
 				return fmt.Errorf("root entry has object type: %v", dirEntry.ObjType)
 			}
-		} else if dirEntry.ObjType != Storage && dirEntry.ObjType != Stream {
+		} else if dirEntry.ObjType != ObjStorage && dirEntry.ObjType != ObjStream {
 			return fmt.Errorf("non-root entry with object type: %v", dirEntry.ObjType)
 		}
 
@@ -109,4 +109,31 @@ func (d *Directory) Validate() error {
 	}
 
 	return nil
+}
+
+func (d *Directory) StreamIDForNameChain(names []string) (uint32, error) {
+	streamId := ROOT_STREAM_ID
+
+	for _, name := range names {
+		streamId = d.DirEntries[streamId].Child
+		for {
+			if streamId == NO_STREAM {
+				return 0, fmt.Errorf("stream not found: %v", name)
+			}
+			dirEntry := d.DirEntries[streamId]
+			order := CompareNames(name, dirEntry.Name)
+			if order == OrderEqual {
+				break
+			}
+
+			switch order {
+			case OrderLess:
+				streamId = dirEntry.LeftSibling
+			case OrderGreater:
+				streamId = dirEntry.RightSibling
+			}
+		}
+	}
+
+	return streamId, nil
 }

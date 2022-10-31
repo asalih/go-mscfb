@@ -3,16 +3,16 @@ package mscfb
 import "fmt"
 
 type Allocator struct {
-	Sector         *Sector
+	Sectors        *Sectors
 	DifatSectorIds []uint32
 	Difat          []uint32
 	Fat            []uint32
 	Validation     Validation
 }
 
-func NewAllocator(sector *Sector, difatSectorIds []uint32, difat []uint32, fat []uint32, validation Validation) (*Allocator, error) {
+func NewAllocator(sector *Sectors, difatSectorIds []uint32, difat []uint32, fat []uint32, validation Validation) (*Allocator, error) {
 	alloc := Allocator{
-		Sector:         sector,
+		Sectors:        sector,
 		DifatSectorIds: difatSectorIds,
 		Difat:          difat,
 		Fat:            fat,
@@ -41,9 +41,9 @@ func (a *Allocator) Next(index uint32) (uint32, error) {
 }
 
 func (a *Allocator) Validate() error {
-	if len(a.Fat) > int(a.Sector.NumSectors) {
+	if len(a.Fat) > int(a.Sectors.NumSectors) {
 		return fmt.Errorf("fat has %v entries, but file has %v: %w",
-			len(a.Fat), a.Sector.NumSectors, ErrorInvalidCFB)
+			len(a.Fat), a.Sectors.NumSectors, ErrorInvalidCFB)
 	}
 
 	for _, difatSector := range a.DifatSectorIds {
@@ -96,10 +96,31 @@ func (a *Allocator) Validate() error {
 	return nil
 }
 
-func (a *Allocator) SeekToSector(sectorId uint32) (int64, error) {
-	return a.Sector.SeekToSector(sectorId)
+func (a *Allocator) SeekToSector(sectorId uint32) (*Sector, error) {
+	return a.Sectors.SeekToSector(sectorId)
 }
 
-func (a *Allocator) SeekWithinSector(sectorId uint32, offset int64) (int64, error) {
-	return a.Sector.SeekWithinSector(sectorId, offset)
+func (a *Allocator) SeekWithinSector(sectorId uint32, offset int64) (*Sector, error) {
+	return a.Sectors.SeekWithinSector(sectorId, offset)
+}
+
+func (a *Allocator) SeekWithinSubSector(sectorId uint32, subSectorIndexWithinSector uint32, subSectorLen int64, offset int64) (*Sector, error) {
+	subSectorStart := int64(subSectorIndexWithinSector) * subSectorLen
+	offsetWithinSector := subSectorStart + offset
+
+	sector, err := a.Sectors.SeekWithinSector(sectorId, offsetWithinSector)
+	if err != nil {
+		return nil, err
+	}
+
+	subSector, err := sector.SubSector(subSectorStart, subSectorLen)
+	if err != nil {
+		return nil, err
+	}
+
+	return subSector, nil
+}
+
+func (a *Allocator) OpenChain(sectorId uint32, init SectorInit) (*Chain, error) {
+	return NewChain(a, sectorId, init)
 }

@@ -27,7 +27,7 @@ func (v Version) SectorShift() uint16 {
 
 // Returns the length of sectors used in this version.
 func (v Version) SectorLen() int {
-	return 1 << v.SectorShift()
+	return 1 << (int(v.SectorShift()))
 }
 
 // Returns the bitmask used for reading stream lengths in this version.

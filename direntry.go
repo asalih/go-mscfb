@@ -16,7 +16,7 @@ type DirEntry struct {
 	LeftSibling    uint32
 	RightSibling   uint32
 	Child          uint32
-	CLSID          [16]byte
+	CLSID          uuid.UUID
 	StateBits      uint32
 	CreationTime   uint64
 	ModifiedTime   uint64
@@ -38,7 +38,7 @@ func NewDirEntry(name string, objType ObjectType, timestamp uint64) *DirEntry {
 		ModifiedTime: timestamp,
 		StreamSize:   0,
 	}
-	if objType == Storage {
+	if objType == ObjStorage {
 		dir.StartingSector = 0
 	} else {
 		dir.StartingSector = END_OF_CHAIN
@@ -96,7 +96,7 @@ func ReadDirEntry(reader io.ReadSeeker, version Version, validation Validation) 
 	// don't do this, so under Permissive validation we don't enforce it;
 	// instead, for the root entry we just ignore the actual name in the
 	// file and treat it as though it were what it's supposed to be.
-	if objType == Root {
+	if objType == ObjRoot {
 		if nameStr != ROOT_DIR_NAME && validation.IsStrict() {
 			return nil, fmt.Errorf("root directory name is invalid: %v", nameStr)
 		}
@@ -142,7 +142,7 @@ func ReadDirEntry(reader io.ReadSeeker, version Version, validation Validation) 
 		return nil, err
 	}
 	if child != NO_STREAM {
-		if objType == Stream {
+		if objType == ObjStream {
 			return nil, fmt.Errorf("non-empty stream child: %v", child)
 		}
 		if child > MAX_REGULAR_SECTOR {
@@ -156,7 +156,7 @@ func ReadDirEntry(reader io.ReadSeeker, version Version, validation Validation) 
 	// don't enforce it; instead, for non-storage objects we just ignore
 	// the CLSID data entirely and treat it as though it were nil.
 	clsid, _ := readUuid(reader)
-	if objType == Stream && clsid != uuid.Nil {
+	if objType == ObjStream && clsid != uuid.Nil {
 		if validation.IsStrict() {
 			return nil, fmt.Errorf("non-nil CLSID for stream: %v", clsid)
 		}
@@ -194,7 +194,7 @@ func ReadDirEntry(reader io.ReadSeeker, version Version, validation Validation) 
 	}
 
 	streamSize = streamSize & version.SectorLenMask()
-	if objType == Storage {
+	if objType == ObjStorage {
 		if validation.IsStrict() && startingSector != 0 {
 			return nil, fmt.Errorf("non-zero starting sector for storage: %v", startingSector)
 		}

@@ -13,7 +13,7 @@ var (
 )
 
 type CompoundFile struct {
-	r io.ReadSeeker
+	Reader io.ReadSeeker
 
 	Header    *Header
 	Directory *Directory
@@ -55,7 +55,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 		return nil, fmt.Errorf("file is too small: %w", ErrorInvalidCFB)
 	}
 
-	sector := NewSector(header.Version, bufLen, reader)
+	sectors := NewSectors(header.Version, bufLen, reader)
 
 	difat := make([]uint32, len(header.InitialDifatEntries))
 	copy(difat, header.InitialDifatEntries)
@@ -70,7 +70,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 	for currentDifatSector != END_OF_CHAIN {
 		if currentDifatSector > MAX_REGULAR_SECTOR {
 			return nil, fmt.Errorf("invalid DIFAT chain: %w", ErrorInvalidCFB)
-		} else if currentDifatSector >= sector.NumSectors {
+		} else if currentDifatSector >= sectors.NumSectors {
 			return nil, fmt.Errorf("invalid DIFAT chain includes sector index: %w", ErrorInvalidCFB)
 		}
 
@@ -81,12 +81,12 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 		seenSectorIds[currentDifatSector] = true
 		difatSectorIds = append(difatSectorIds, currentDifatSector)
 
-		_, err = sector.SeekToSector(currentDifatSector)
+		sector, err := sectors.SeekToSector(currentDifatSector)
 		if err != nil {
 			return nil, err
 		}
 
-		for i := 0; i < (sector.SectorLen()/int(uSize) - 1); i++ {
+		for i := 0; i < (sectors.SectorLen()/int(uSize) - 1); i++ {
 			var next uint32
 			err = binary.Read(sector.reader, binary.LittleEndian, &next)
 			if err != nil {
@@ -127,15 +127,15 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 
 	fat := make([]uint32, 0)
 	for _, sectorId := range difat {
-		if sectorId >= sector.NumSectors {
+		if sectorId >= sectors.NumSectors {
 			return nil, fmt.Errorf("invalid FAT sector index: %w", ErrorInvalidCFB)
 		}
 
-		_, err = sector.SeekToSector(sectorId)
+		sector, err := sectors.SeekToSector(sectorId)
 		if err != nil {
 			return nil, err
 		}
-		for i := 0; i < sector.SectorLen()/int(uSize); i++ {
+		for i := 0; i < sectors.SectorLen()/int(uSize); i++ {
 			var next uint32
 			err = binary.Read(sector.reader, binary.LittleEndian, &next)
 			if err != nil {
@@ -147,7 +147,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 
 	//fat pop
 	if !validation.IsStrict() {
-		for len(fat) > int(sector.NumSectors) && fat[len(fat)-1] == 0 {
+		for len(fat) > int(sectors.NumSectors) && fat[len(fat)-1] == 0 {
 			fat = fat[:len(fat)-1]
 		}
 	}
@@ -159,7 +159,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 		fat = fat[:i]
 	}
 
-	allocator, err := NewAllocator(sector, difatSectorIds, difat, fat, validation)
+	allocator, err := NewAllocator(sectors, difatSectorIds, difat, fat, validation)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 	for currentDirSector != END_OF_CHAIN {
 		if currentDirSector > MAX_REGULAR_SECTOR {
 			return nil, fmt.Errorf("invalid directory chain: %w", ErrorInvalidCFB)
-		} else if currentDirSector >= sector.NumSectors {
+		} else if currentDirSector >= sectors.NumSectors {
 			return nil, fmt.Errorf("invalid directory chain includes sector index: %w", ErrorInvalidCFB)
 		}
 
@@ -242,7 +242,7 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 	}
 
 	compoundFile := CompoundFile{
-		r: reader,
+		Reader: reader,
 
 		Header:    header,
 		Directory: directory,
@@ -250,4 +250,28 @@ func Open(reader io.ReadSeeker, validation Validation) (*CompoundFile, error) {
 	}
 
 	return &compoundFile, nil
+}
+
+func (c *CompoundFile) RootEntry() *Entry {
+	return NewEntry(c.Directory.RootDirEntry(), "/")
+}
+
+func (c *CompoundFile) OpenStream(path string) (*Stream, error) {
+	names := NameChainFromPath(path)
+	path = PathFromNameChain(names)
+	streamId, err := c.MiniAlloc.StreamIDForNameChain(names)
+	if err != nil {
+		return nil, err
+	}
+
+	if streamId == 0 {
+		return nil, fmt.Errorf("stream not found: %s", path)
+	}
+
+	entry := c.MiniAlloc.Directory.DirEntries[streamId]
+	if entry.ObjType != ObjStream {
+		return nil, fmt.Errorf("not a stream: %s", path)
+	}
+
+	return newStream(c, streamId), nil
 }
