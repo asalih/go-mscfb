@@ -42,3 +42,10 @@ const (
 	MAX_REGULAR_STREAM_ID uint32 = 0xfffffffa
 	NO_STREAM             uint32 = 0xffffffff
 )
+
+func min(a, b uint64) uint64 {
+	if a < b {
+		return a
+	}
+	return b
+}

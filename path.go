@@ -3,6 +3,7 @@ package mscfb
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"unicode/utf16"
 )
@@ -32,6 +33,14 @@ func CompareNames(nameLeft, nameRight string) Ordering {
 	if nl == nr {
 		if strings.EqualFold(nameLeft, nameRight) {
 			return OrderEqual
+		} else {
+			sc := []string{nameLeft, nameRight}
+			sort.Strings(sc)
+			if sc[0] == nameLeft {
+				return OrderLess
+			}
+
+			return OrderGreater
 		}
 	}
 

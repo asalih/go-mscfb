@@ -40,6 +40,29 @@ func (c *MiniChain) Len() uint64 {
 	return uint64(MINI_SECTOR_LEN * len(c.SectorIds))
 }
 
+func (c *MiniChain) ReadAll(p []byte) (int, error) {
+	shouldRead := cap(p)
+	totalRead := 0
+
+	for {
+		remainig := shouldRead - totalRead
+		if remainig == 0 {
+			return totalRead, nil
+		}
+
+		n, err := c.Read(p[totalRead:])
+		totalRead += n
+
+		if err == io.EOF {
+			return totalRead, nil
+		}
+
+		if err != nil {
+			return totalRead, err
+		}
+	}
+}
+
 func (c *MiniChain) Read(p []byte) (n int, err error) {
 	totalLen := c.Len()
 	remainingInChain := totalLen - c.Offset
@@ -66,29 +89,6 @@ func (c *MiniChain) Read(p []byte) (n int, err error) {
 	c.Offset += uint64(bytesRead)
 
 	return bytesRead, nil
-}
-
-func (c *MiniChain) ReadAll(p []byte) (int, error) {
-	shouldRead := cap(p)
-	totalRead := 0
-
-	for {
-		remainig := shouldRead - totalRead
-		if remainig == 0 {
-			return totalRead, nil
-		}
-
-		n, err := c.Read(p[totalRead:])
-		totalRead += n
-
-		if err == io.EOF {
-			return totalRead, nil
-		}
-
-		if err != nil {
-			return totalRead, err
-		}
-	}
 }
 
 func (c *MiniChain) Seek(offset int64, whence int) (int64, error) {

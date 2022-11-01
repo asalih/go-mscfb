@@ -49,6 +49,10 @@ func (s *Stream) Read(p []byte) (int, error) {
 		s.Cap = uint64(cap)
 	}
 
+	if s.CurrentPosition() == s.Cap {
+		return 0, io.EOF
+	}
+
 	numBytes := copy(p, s.Buffer[s.Position:s.Cap])
 
 	s.Position = min(s.Cap, s.Position+uint64(numBytes))
@@ -98,7 +102,7 @@ func (s *Stream) readDataFromStream() (int, error) {
 				return 0, err
 			}
 
-			_, err = chain.Read(s.Buffer[:numBytes])
+			_, err = chain.ReadAll(s.Buffer[:numBytes])
 			if err != nil {
 				return 0, err
 			}

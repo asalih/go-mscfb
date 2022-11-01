@@ -45,6 +45,29 @@ func (c *Chain) Len() uint64 {
 	return uint64(c.Allocator.Sectors.SectorLen() * len(c.SectorIds))
 }
 
+func (c *Chain) ReadAll(p []byte) (int, error) {
+	shouldRead := len(p)
+	totalRead := 0
+
+	for {
+		remainig := shouldRead - totalRead
+		if remainig == 0 {
+			return totalRead, nil
+		}
+
+		n, err := c.Read(p[totalRead:])
+		totalRead += n
+
+		if err == io.EOF {
+			return totalRead, nil
+		}
+
+		if err != nil {
+			return totalRead, err
+		}
+	}
+}
+
 func (c *Chain) Read(p []byte) (int, error) {
 	totalLen := c.Len()
 	remainingInChain := totalLen - c.OffsetFromStart
@@ -63,7 +86,7 @@ func (c *Chain) Read(p []byte) (int, error) {
 		return 0, err
 	}
 
-	bytesReaded, err := sector.reader.Read(p[:maxLen])
+	bytesReaded, err := sector.Read(p[:maxLen])
 	if err != nil {
 		return 0, err
 	}
@@ -104,11 +127,4 @@ func (c *Chain) IntoSubSector(subSectorIndex uint32, subSectorLen int64, offsetW
 	}
 
 	return sector, nil
-}
-
-func min(a, b uint64) uint64 {
-	if a < b {
-		return a
-	}
-	return b
 }
