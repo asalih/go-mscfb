@@ -1,6 +1,7 @@
 package mscfb
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -36,6 +37,23 @@ func (s *Stream) CurrentPosition() uint64 {
 }
 
 func (s *Stream) Read(p []byte) (int, error) {
+	bufData, err := s.fillBuf()
+	if err != nil {
+		return 0, err
+	}
+
+	if s.CurrentPosition() >= s.TotalLen {
+		return 0, io.EOF
+	}
+
+	numBytes := copy(p, bufData)
+
+	s.Position = min(s.Cap, s.Position+uint64(numBytes))
+
+	return numBytes, nil
+}
+
+func (s *Stream) fillBuf() ([]byte, error) {
 	if s.Position >= s.Cap &&
 		s.CurrentPosition() < s.TotalLen {
 		s.OffsetFromStart += uint64(s.Position)
@@ -43,21 +61,13 @@ func (s *Stream) Read(p []byte) (int, error) {
 
 		cap, err := s.readDataFromStream()
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 
 		s.Cap = uint64(cap)
 	}
 
-	if s.CurrentPosition() == s.Cap {
-		return 0, io.EOF
-	}
-
-	numBytes := copy(p, s.Buffer[s.Position:s.Cap])
-
-	s.Position = min(s.Cap, s.Position+uint64(numBytes))
-
-	return numBytes, nil
+	return s.Buffer[s.Position:s.Cap], nil
 }
 
 func (s *Stream) readDataFromStream() (int, error) {
@@ -112,40 +122,57 @@ func (s *Stream) readDataFromStream() (int, error) {
 	return numBytes, nil
 }
 
-func (s *Stream) Seek(offset int64, whence int) (int64, error) {
+func (s *Stream) Seek(pos int64, whence int) (int64, error) {
+	delta := pos
+	var newPos int64
 
-	var pos int64
 	switch whence {
 	case io.SeekStart:
-		pos = offset
-		if pos > int64(s.TotalLen) {
-			return 0, io.EOF
+		if delta > int64(s.TotalLen) {
+			return 0, fmt.Errorf("cannot seek to %v bytes from start, because stream length is only %v bytes",
+				delta, s.TotalLen)
 		}
+		newPos = delta
+
 	case io.SeekCurrent:
-		cpos := s.CurrentPosition()
-		pos = int64(cpos) + offset
-		if cpos > s.TotalLen {
-			return 0, io.EOF
-		}
-		if cpos < 0 {
-			return 0, io.EOF
+		oldPos := s.CurrentPosition()
+		if delta < 0 {
+			delta = -delta
+			if delta > int64(oldPos) {
+				return 0, fmt.Errorf("cannot seek backwards %v bytes, because current position is only %v bytes",
+					delta, oldPos)
+			}
+			newPos = int64(oldPos) - delta
+		} else {
+			remaining := s.TotalLen - oldPos
+			if delta > int64(remaining) {
+				return 0, fmt.Errorf("cannot seek forward %v bytes, because only %v bytes remain in stream",
+					delta, remaining)
+			}
+			newPos = int64(oldPos) + delta
 		}
 
 	case io.SeekEnd:
-		pos = int64(s.TotalLen) + offset
-		if pos > 0 {
-			return 0, io.EOF
+		if delta > 0 {
+			return 0, fmt.Errorf("cannot seek to %v bytes from end, because stream length is only %v bytes",
+				delta, s.TotalLen)
+		} else {
+			delta = -delta
+			if delta > int64(s.TotalLen) {
+				return 0, fmt.Errorf("cannot seek to %v bytes from end, because stream length is only %v bytes",
+					delta, s.TotalLen)
+			}
 		}
+		newPos = int64(s.TotalLen) - delta
 	}
 
-	if pos < int64(s.OffsetFromStart) || pos > int64(s.OffsetFromStart+s.Cap) {
-		s.OffsetFromStart = uint64(pos)
+	if newPos < int64(s.OffsetFromStart) || newPos > int64(s.OffsetFromStart+s.Cap) {
+		s.OffsetFromStart = uint64(newPos)
 		s.Position = 0
 		s.Cap = 0
 	} else {
-		s.Position = uint64(pos - int64(s.OffsetFromStart))
+		s.Position = uint64(newPos - int64(s.OffsetFromStart))
 	}
 
-	return int64(s.Position), nil
-
+	return newPos, nil
 }

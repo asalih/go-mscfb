@@ -275,3 +275,17 @@ func (c *CompoundFile) OpenStream(path string) (*Stream, error) {
 
 	return newStream(c, streamId), nil
 }
+
+func (c *CompoundFile) Exists(path string) (bool, error) {
+	names := NameChainFromPath(path)
+	if len(names) == 0 {
+		return false, nil
+	}
+
+	streamId, err := c.MiniAlloc.StreamIDForNameChain(names)
+	if err != nil {
+		return false, err
+	}
+
+	return streamId > 0, nil
+}
