@@ -289,3 +289,22 @@ func (c *CompoundFile) Exists(path string) (bool, error) {
 
 	return streamId > 0, nil
 }
+
+func (c *CompoundFile) IsStream(path string) (bool, error) {
+	names := NameChainFromPath(path)
+	if len(names) == 0 {
+		return false, nil
+	}
+
+	streamId, err := c.MiniAlloc.StreamIDForNameChain(names)
+	if err != nil {
+		return false, err
+	}
+
+	if streamId == 0 {
+		return false, nil
+	}
+
+	entry := c.MiniAlloc.Directory.DirEntries[streamId]
+	return entry.ObjType == ObjStream, nil
+}

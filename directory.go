@@ -27,6 +27,13 @@ func (d *Directory) RootDirEntry() *DirEntry {
 	return d.DirEntries[ROOT_STREAM_ID]
 }
 
+// Returns an iterator over the entries within the root storage object.
+func (d *Directory) RootStorageEntries() *Entries {
+	start := d.RootDirEntry().Child
+
+	return NewEntries(EntriesNonRecursive, d, PathFromNameChain([]string{}), start)
+}
+
 func (d *Directory) Validate() error {
 	if len(d.DirEntries) == 0 {
 		return fmt.Errorf("directory has no entries")
