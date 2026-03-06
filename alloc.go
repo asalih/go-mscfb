@@ -19,9 +19,11 @@ func NewAllocator(sector *Sectors, difatSectorIds []uint32, difat []uint32, fat 
 		Validation:     validation,
 	}
 
-	err := alloc.Validate()
-	if err != nil {
-		return nil, err
+	if validation.IsStrict() {
+		err := alloc.Validate()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &alloc, nil
